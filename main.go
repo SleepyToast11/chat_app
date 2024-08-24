@@ -9,7 +9,7 @@ import (
 
 const (
 	ServerHost = "localhost"
-	ServerPort = "8086"
+	ServerPort = "8088"
 )
 
 func makeServerConnection() (net.Conn, error) {
@@ -29,7 +29,7 @@ func makeServerConnection() (net.Conn, error) {
 }
 
 func makeClientConnection() (net.Conn, error) {
-	address := fmt.Sprintf("%s:%s", ServerHost, 8080)
+	address := fmt.Sprintf("%s:%s", ServerHost, ServerPort)
 	conn, err := net.Dial("tcp", address)
 	if err != nil {
 		return nil, err
@@ -42,10 +42,13 @@ func makeClientConnection() (net.Conn, error) {
 }
 
 func main() {
-
+	killChan := make(chan bool)
+	strChanIn := make(chan string)
+	strChanOut := make(chan string)
+	go handleTerminal(strChanOut, killChan)
 	var conn net.Conn
 	var err error
-	if len(os.Args) < 1 {
+	if len(os.Args) < 2 {
 		println("serverMode")
 		conn, err = makeClientConnection()
 		if err != nil {
@@ -62,11 +65,6 @@ func main() {
 	}
 	println("Connected to server")
 
-	killChan := make(chan bool)
-	strChanIn := make(chan string)
-	strChanOut := make(chan string)
-
-	go handleTerminal(strChanOut, killChan)
 	go handleConnection(conn, killChan, strChanIn)
 
 	var incomeMessages string
