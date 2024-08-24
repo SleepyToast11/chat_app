@@ -12,35 +12,6 @@ const (
 	ServerPort = "8090"
 )
 
-func makeServerConnection() (net.Conn, error) {
-	listener, err := net.Listen("tcp", ServerHost+":"+ServerPort) //blocking
-	if err != nil {
-		fmt.Println("Error creating listener:", err)
-		return nil, err
-	}
-
-	fmt.Println("Server listening on", ServerHost+":"+ServerPort)
-
-	conn, err := listener.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection:", err)
-	}
-	return conn, nil
-}
-
-func makeClientConnection() (net.Conn, error) {
-	address := fmt.Sprintf("%s:%s", ServerHost, ServerPort)
-	conn, err := net.Dial("tcp", address)
-	if err != nil {
-		return nil, err
-	}
-	tcpConn, ok := conn.(*net.TCPConn)
-	if !ok {
-		return nil, fmt.Errorf("failed to create TCP client")
-	}
-	return tcpConn, nil
-}
-
 func main() {
 	killChan := make(chan bool)
 	strChanIn := make(chan string)
@@ -51,59 +22,71 @@ func main() {
 	defer close(killChan)
 
 	go handleTerminal(strChanOut, killChan)
+	conn, err := connectNonBlocking(killChan)
+	if err != nil {
+		println(err.Error())
+		os.Exit(1)
+	}
+	println("Connected to server")
 
-	var conn net.Conn
-	var err error
+	go handleConnection(conn, killChan, strChanIn)
 
+	if err := controller(killChan, strChanIn, strChanOut, conn); err != nil {
+		fmt.Println(err)
+	}
+}
+
+func connectNonBlocking(killChan <-chan bool) (net.Conn, error) {
 	//allow to kill program before initialization
-	for conn == nil {
+	for {
 		select {
 		case <-killChan:
 			os.Exit(0)
 		default:
 			if len(os.Args) < 2 {
 				println("client Mode")
-				conn, err = makeClientConnection()
+				conn, err := MakeClientConnection(ServerHost, ServerPort)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
 				}
+				return conn, nil
 			} else {
 				println("server mode")
-				conn, err = makeServerConnection()
+				conn, err := MakeServerConnection(ServerHost, ServerPort)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
 				}
+				return conn, nil
 			}
 		}
 	}
-	println("Connected to server")
 
-	go handleConnection(conn, killChan, strChanIn)
+}
 
+func controller(killChan chan bool, strChanIn chan string, strChanOut chan string, conn net.Conn) error {
 	var incomeMessages string
 	for {
 		select {
 		case <-killChan:
-			os.Exit(0)
+			return nil
 		case str := <-strChanIn:
 			incomeMessages += str + "\n"
 		case str := <-strChanOut:
 			if str == "!read" {
 				if incomeMessages == "" {
-
 				} else {
 					println(incomeMessages)
 					incomeMessages = ""
 				}
+			} else {
+				_, err := conn.Write([]byte(str + "\n"))
+				if err != nil {
+					println("Error writing to connection:", err)
+					return err
+				}
 			}
-			_, err := conn.Write([]byte(str + "\n"))
-			if err != nil {
-				println("Error writing to connection:", err)
-				return
-			}
-
 		}
 	}
 }
@@ -133,7 +116,6 @@ func handleTerminal(strChan chan<- string, killChan chan bool) {
 			strChan <- input
 		}
 	}
-
 }
 
 func handleConnection(conn net.Conn, kill chan bool, strChan chan<- string) {
