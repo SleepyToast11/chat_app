@@ -9,7 +9,7 @@ import (
 
 const (
 	ServerHost = "localhost"
-	ServerPort = "8088"
+	ServerPort = "8090"
 )
 
 func makeServerConnection() (net.Conn, error) {
@@ -51,21 +51,31 @@ func main() {
 	defer close(killChan)
 
 	go handleTerminal(strChanOut, killChan)
+
 	var conn net.Conn
 	var err error
-	if len(os.Args) < 2 {
-		println("client Mode")
-		conn, err = makeClientConnection()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-	} else {
-		println("server mode")
-		conn, err = makeServerConnection()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+
+	//allow to kill program before initialization
+	for conn == nil {
+		select {
+		case <-killChan:
+			os.Exit(0)
+		default:
+			if len(os.Args) < 2 {
+				println("client Mode")
+				conn, err = makeClientConnection()
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			} else {
+				println("server mode")
+				conn, err = makeServerConnection()
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			}
 		}
 	}
 	println("Connected to server")
