@@ -45,18 +45,23 @@ func main() {
 	killChan := make(chan bool)
 	strChanIn := make(chan string)
 	strChanOut := make(chan string)
+
+	defer close(killChan)
+	defer close(strChanOut)
+	defer close(killChan)
+
 	go handleTerminal(strChanOut, killChan)
 	var conn net.Conn
 	var err error
 	if len(os.Args) < 2 {
-		println("serverMode")
+		println("client Mode")
 		conn, err = makeClientConnection()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 	} else {
-		println("client mode")
+		println("server mode")
 		conn, err = makeServerConnection()
 		if err != nil {
 			fmt.Println(err)
@@ -94,11 +99,8 @@ func main() {
 }
 
 func handleTerminal(strChan chan<- string, killChan chan bool) {
-	println("hello!")
 	defer func() {
 		killChan <- true
-		close(strChan) // Close the channel when done reading
-		close(killChan)
 		return
 	}()
 	scanner := bufio.NewScanner(os.Stdin)
