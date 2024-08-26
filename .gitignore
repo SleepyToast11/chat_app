@@ -1,2 +1,7 @@
 /server/SECRET
+/server/data-accessor/SECRET.json
 
+/.idea/dataSources.xml
+/.idea/sqlDataSources.xml
+/.idea/sqldialects.xml
+/data_source
